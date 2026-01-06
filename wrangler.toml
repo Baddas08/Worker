@@ -3,22 +3,8 @@ main = "worker.js"
 compatibility_date = "2026-01-01"
 workers_dev = true
 
-[vars]
- GPT4O_API_KEY = "f5ef4c2c7879b0ef8ecd365d0c41cca3"
- QWEN_API_KEY = "3abf586b55f145899225cff25472bb72"
- APP_NAME = "VibeWall"
-ENVIRONMENT = "production"
-
-# Région automatique (Cloudflare choisit la plus proche)
 placement = { mode = "smart" }
 
-# Mode d'observabilité (prépare les logs & métriques)
-[observability]
-enabled = true
-
-[observability]
-[observability.logs]
-enabled = false
-head_sampling_rate = 1
-invocation_logs = true
-persist = true
+[vars]
+APP_NAME = "VibeWall"
+ENVIRONMENT = "production"
