@@ -1,25 +1,37 @@
 export default {
     async fetch(request, env, ctx) {
         const url = new URL(request.url);
-
         const corsHeaders = {
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
             "Access-Control-Allow-Headers": "Content-Type, x-user-id",
         };
 
-        if (request.method === "OPTIONS") {
-            return new Response(null, { headers: corsHeaders });
-        }
+        if (request.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
-        // Changement ici : On accepte la racine "/" ou "/generate"
         if ((url.pathname === "/generate" || url.pathname === "/") && request.method === "POST") {
             try {
                 const body = await request.json();
                 const { prompt, userId, size, nVariants } = body;
 
-                // kie.ai nécessite souvent une structure spécifique
-                const response = await fetch("https://api.kie.ai/v1/generate-4o-image", {
+                if (!userId) {
+                    return new Response(JSON.stringify({ error: "Missing userId" }), { status: 400, headers: corsHeaders });
+                }
+
+                // --- LOGIQUE RATE LIMIT (3/JOUR) ---
+                const today = new Date().toISOString().split('T')[0];
+                const kvKey = `usage:${userId}:${today}`;
+                const usageCount = parseInt(await env.VIBEWALL_LIMITS.get(kvKey) || "0");
+
+                if (usageCount >= 3) {
+                    return new Response(JSON.stringify({ error: "Limite quotidienne atteinte (3/jour)" }), { 
+                        status: 429, 
+                        headers: corsHeaders 
+                    });
+                }
+
+                // --- APPEL API KIE.AI (URL CORRIGÉE) ---
+                const response = await fetch("https://api.kie.ai/v1/image/generations", {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
@@ -27,20 +39,28 @@ export default {
                     },
                     body: JSON.stringify({
                         prompt: prompt,
-                        size: size || "1:1", // Valeur par défaut si absent
-                        nVariants: nVariants || 1
+                        model: "gpt-4o-image",
+                        size: size || "1024x1024",
+                        n: nVariants || 1
                     }),
                 });
 
                 const data = await response.json();
+
+                if (response.ok) {
+                    // Incrémentation seulement si l'image est générée avec succès
+                    await env.VIBEWALL_LIMITS.put(kvKey, (usageCount + 1).toString(), { expirationTtl: 86400 });
+                }
+
                 return new Response(JSON.stringify(data), {
                     status: response.status,
                     headers: { ...corsHeaders, "Content-Type": "application/json" },
                 });
+
             } catch (error) {
-                return new Response(JSON.stringify({ error: "Erreur lors de l'appel API" }), {
-                    status: 500,
-                    headers: corsHeaders,
+                return new Response(JSON.stringify({ error: "Internal Server Error", details: error.message }), { 
+                    status: 500, 
+                    headers: corsHeaders 
                 });
             }
         }
