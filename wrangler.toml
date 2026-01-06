@@ -8,3 +8,7 @@ placement = { mode = "smart" }
 [vars]
 APP_NAME = "VibeWall"
 ENVIRONMENT = "production"
+
+[[kv_namespaces]]
+binding = "VIBEWALL_LIMITS"
+id = "c89dd447b840bee6b59980d1c270f8ba"
